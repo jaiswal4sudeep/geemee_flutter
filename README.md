@@ -1,73 +1,81 @@
-## **Overview**
-`geemee_flutter` lets you:
-- Initialize GeeMee SDK
-- Set/Get a custom user ID
-- Enable debug mode
-- Check if OfferWall is ready
-- Open the OfferWall
-- Listen to SDK events in Flutter
+# GeeMee Flutter SDK
 
----
+## Overview
+The GeeMee Flutter SDK provides a simple and efficient way to integrate the GeeMee advertising platform into your Flutter applications. It supports various ad formats including banners, interstitials, and offer walls, as well as user center functionalities.
 
-## **Installation**
-**`pubspec.yaml`**
+## Features
+- **Banner Ads**: Load, show, and manage banner ads with different sizes.
+- **Interstitial Ads**: Load and display full-screen interstitial ads.
+- **Offer Wall**: Integrate an offer wall for users to complete offers in exchange for rewards.
+- **PlayMee User Center**: Access user rewards, offers, and account details.  
+- **Event Handling**: Listen to SDK events through a stream.
+
+## Installation
+To use the GeeMee Flutter SDK, add the following dependency to your `pubspec.yaml` file:
 ```yaml
 dependencies:
-  geemee_flutter: ^0.0.1
-```
-Run:
-```bash
-flutter pub get
+  geemee_flutter: ^0.0.2
 ```
 
-## **Usage**
-
-**Import**
+## Usage
+### Initialization
+Before using any features of the SDK, you need to initialize it with your app key:
 ```dart
 import 'package:geemee_flutter/geemee_flutter.dart';
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await GeemeeFlutter.initSDK(appKey: "your_app_key");
+  runApp(MyApp());
+}
 ```
 
-**Initialize**
+### Setting User ID
+You can set a user ID to track user-specific data:
 ```dart
-await GeemeeFlutter.initSDK("YOUR_APP_KEY");
+await GeemeeFlutter.setUserId(userId: "unique_user_id");
 ```
 
-**Set/Get User ID**
+### Banner Ads
+To load and show a banner ad:
 ```dart
-await GeemeeFlutter.setUserId("user123");
-String? uid = await GeemeeFlutter.getUserId();
-print("Current User ID: $uid");
+await GeemeeFlutter.loadBanner(
+  placementId: "your_placement_id",
+  adSize: GeemeeBannerSize.banner,
+);
+await GeemeeFlutter.showBanner(placementId: "your_placement_id");
 ```
 
-**Enable Debug Mode**
+### Interstitial Ads
+To check if an interstitial ad is ready and show it:
 ```dart
-await GeemeeFlutter.setDebugMode(true);
+if (await GeemeeFlutter.isInterstitialReady(placementId: "your_placement_id")) {
+  await GeemeeFlutter.showInterstitial(placementId: "your_placement_id");
+}
 ```
 
-**Get SDK Version**
+### Offer Wall
+To open the offer wall:
 ```dart
-String? version = await GeemeeFlutter.getVersion();
-print("GeeMee SDK Version: $version");
+if (await GeemeeFlutter.isOfferWallReady(placementId: "your_placement_id")) {
+  await GeemeeFlutter.openOfferWall(placementId: "your_placement_id");
+}
 ```
 
-**Check OfferWall Status**
+### PlayMee User Center
+To open the PlayMee User Center:
 ```dart
-bool ready = await GeemeeFlutter.isOfferWallReady("YOUR_PLACEMENT_ID");
-print("OfferWall ready: $ready");
+if (await GeemeeFlutter.isUserCenterReady(placementId: "your_placement_id")) {
+  await GeemeeFlutter.openUserCenter(placementId: "your_placement_id");
+} 
 ```
 
-**Open OfferWall**
-```dart
-await GeemeeFlutter.openOfferWall("YOUR_PLACEMENT_ID");
-```
-
----
-
-## **Listen to SDK Events**
+### Listening to Events
+You can listen to SDK events using the `events` stream:
 ```dart
 GeemeeFlutter.events.listen((event) {
-  print("Event Received: ${event['type']}, Data: ${event['data']}");
+  print("Received event: $event");
 });
 ```
 
----
+## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details

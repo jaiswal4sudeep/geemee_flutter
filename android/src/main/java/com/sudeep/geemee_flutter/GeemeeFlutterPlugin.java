@@ -1,28 +1,35 @@
 package com.sudeep.geemee_flutter;
 
+import android.app.Activity;
 import android.content.Context;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import ai.geemee.AdSize;
 import ai.geemee.GeeMee;
 import ai.geemee.GeeMeeCallback;
 import ai.geemee.GError;
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
+import io.flutter.embedding.engine.plugins.activity.ActivityAware;
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
-import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
 
 /** GeemeeFlutterPlugin */
-public class GeemeeFlutterPlugin implements FlutterPlugin, MethodCallHandler {
+public class GeemeeFlutterPlugin implements FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware {
   private MethodChannel channel;
   private EventChannel eventChannel;
   private EventChannel.EventSink eventSink;
   private Context context;
+  private Activity activity; // Store current activity
 
   @Override
   public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
@@ -47,81 +54,66 @@ public class GeemeeFlutterPlugin implements FlutterPlugin, MethodCallHandler {
   @Override
   public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
     switch (call.method) {
+      /** ================= SDK INIT ================= */
       case "initSDK":
         String appKey = call.argument("appKey");
         GeeMee.setCallback(new GeeMeeCallback() {
           @Override
-          public void onInitSuccess() {
-            sendEvent("onInitSuccess", null);
+          public void onInitSuccess() { sendEvent("onInitSuccess", null); }
+          @Override
+          public void onInitFailed(GError error) { sendEvent("onInitFailed", error); }
+
+          /** Banner Callbacks */
+          @Override
+          public void onBannerReady(String placementId) { sendEvent("onBannerReady", placementId); }
+          @Override
+          public void onBannerLoadFailed(String placementId, GError gError) { sendEvent("onBannerLoadFailed", gError); }
+          @Override
+          public void onBannerShowFailed(String placementId, GError gError) { sendEvent("onBannerShowFailed", gError); }
+          @Override
+          public void onBannerClick(String placementId) { sendEvent("onBannerClick", placementId); }
+
+          /** Interstitial Callbacks */
+          @Override
+          public void onInterstitialOpen(String placementId) { sendEvent("onInterstitialOpen", placementId); }
+          @Override
+          public void onInterstitialOpenFailed(String placementId, GError gError) { sendEvent("onInterstitialOpenFailed", gError); }
+          @Override
+          public void onInterstitialClose(String placementId) { sendEvent("onInterstitialClose", placementId); }
+
+          /** OfferWall Callbacks */
+          @Override
+          public void onOfferWallOpen(String placement) { sendEvent("onOfferWallOpen", placement); }
+          @Override
+          public void onOfferWallOpenFailed(String placement, GError error) { sendEvent("onOfferWallOpenFailed", error); }
+          @Override
+          public void onOfferWallClose(String placement) { sendEvent("onOfferWallClose", placement); }
+
+          /** PlayMee Callbacks */
+          @Override
+          public void onUserCenterOpen(String placementId) { sendEvent("onUserCenterOpen", placementId); }
+          @Override
+          public void onUserCenterOpenFailed(String placementId, GError gError) { sendEvent("onUserCenterOpenFailed", gError); }
+          @Override
+          public void onUserCenterClose(String placementId) { sendEvent("onUserCenterClose", placementId); }
+
+          @Override
+          public void onUserInteraction(String placementId, String data) {
+            sendEvent("onUserInteraction", placementId + ":" + data);
           }
-
-          @Override
-          public void onInitFailed(GError error) {
-            sendEvent("onInitFailed", error );
-          }
-
-          @Override
-          public void onBannerReady(String s) {}
-
-          @Override
-          public void onBannerLoadFailed(String s, GError gError) {}
-
-          @Override
-          public void onBannerShowFailed(String s, GError gError) {}
-
-          @Override
-          public void onBannerClick(String s) {}
-
-          @Override
-          public void onInterstitialOpen(String s) {}
-
-          @Override
-          public void onInterstitialOpenFailed(String s, GError gError) {}
-
-          @Override
-          public void onInterstitialClose(String s) {}
-
-          @Override
-          public void onOfferWallOpen(String placement) {
-            sendEvent("onOfferWallOpen", placement);
-          }
-
-          @Override
-          public void onOfferWallOpenFailed(String placement, GError error) {
-            sendEvent("onOfferWallOpenFailed", error);
-          }
-
-          @Override
-          public void onOfferWallClose(String placement) {
-            sendEvent("onOfferWallClose", placement);
-          }
-
-          @Override
-          public void onUserCenterOpen(String s) {}
-
-          @Override
-          public void onUserCenterOpenFailed(String s, GError gError) {}
-
-          @Override
-          public void onUserCenterClose(String s) {}
-
-          @Override
-          public void onUserInteraction(String s, String s1) {}
-
         });
         GeeMee.initSDK(appKey);
         result.success(null);
         break;
 
+      /** ================= USER SETTINGS ================= */
       case "setUserId":
-        String userId = call.argument("userId");
-        GeeMee.setUserId(userId);
+        GeeMee.setUserId(call.argument("userId"));
         result.success(null);
         break;
 
       case "getUserId":
-        String id = GeeMee.getUserId();
-        result.success(id);
+        result.success(GeeMee.getUserId());
         break;
 
       case "setDebugMode":
@@ -131,19 +123,78 @@ public class GeemeeFlutterPlugin implements FlutterPlugin, MethodCallHandler {
         break;
 
       case "getVersion":
-        String version = GeeMee.getVersion();
-        result.success(version);
+        result.success(GeeMee.getVersion());
         break;
 
+      /** ================= OFFER WALL ================= */
       case "isOfferWallReady":
-        String pidCheck = call.argument("placementId");
-        boolean ready = GeeMee.isOfferWallReady(pidCheck);
-        result.success(ready);
+        result.success(GeeMee.isOfferWallReady(call.argument("placementId")));
         break;
 
       case "openOfferWall":
-        String pidOpen = call.argument("placementId");
-        GeeMee.openOfferWall(pidOpen);
+        GeeMee.openOfferWall(call.argument("placementId"));
+        result.success(null);
+        break;
+
+      /** ================= BANNER ================= */
+      case "loadBanner":
+        String placementBanner = call.argument("placementId");
+        String size = call.argument("adSize");
+        AdSize adSize = AdSize.BANNER;
+        if ("MEDIUM_RECTANGLE".equals(size)) adSize = AdSize.MEDIUM_RECTANGLE;
+        else if ("LEADERBOARD".equals(size)) adSize = AdSize.LEADERBOARD;
+        GeeMee.loadBanner(placementBanner, adSize);
+        result.success(null);
+        break;
+
+      case "showBanner":
+        String placementBannerShow = call.argument("placementId");
+        if (activity != null) {
+          activity.runOnUiThread(() -> {
+            View bannerView = GeeMee.showBanner(placementBannerShow);
+            if (bannerView != null) {
+              if (bannerView.getParent() != null) {
+                ViewGroup vg = (ViewGroup) bannerView.getParent();
+                vg.removeView(bannerView);
+              }
+              ViewGroup rootView = activity.findViewById(android.R.id.content);
+              if (rootView instanceof LinearLayout) {
+                ((LinearLayout) rootView).addView(bannerView);
+              } else if (rootView.getChildCount() > 0 && rootView.getChildAt(0) instanceof ViewGroup) {
+                ((ViewGroup) rootView.getChildAt(0)).addView(bannerView);
+              }
+            }
+          });
+        }
+        result.success(null);
+        break;
+
+      case "isBannerReady":
+        result.success(GeeMee.isBannerReady(call.argument("placementId")));
+        break;
+
+      case "destroyBanner":
+        GeeMee.destroyBanner(call.argument("placementId"));
+        result.success(null);
+        break;
+
+      /** ================= INTERSTITIAL ================= */
+      case "isInterstitialReady":
+        result.success(GeeMee.isInterstitialReady(call.argument("placementId")));
+        break;
+
+      case "showInterstitial":
+        GeeMee.showInterstitial(call.argument("placementId"));
+        result.success(null);
+        break;
+
+      /** ================= PLAYMEE ================= */
+      case "isUserCenterReady":
+        result.success(GeeMee.isUserCenterReady(call.argument("placementId")));
+        break;
+
+      case "openUserCenter":
+        GeeMee.openUserCenter(call.argument("placementId"));
         result.success(null);
         break;
 
@@ -152,6 +203,7 @@ public class GeemeeFlutterPlugin implements FlutterPlugin, MethodCallHandler {
     }
   }
 
+  /** Send events to Flutter */
   private void sendEvent(String eventName, Object data) {
     if (eventSink != null) {
       Map<String, Object> map = new HashMap<>();
@@ -165,5 +217,26 @@ public class GeemeeFlutterPlugin implements FlutterPlugin, MethodCallHandler {
   public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
     channel.setMethodCallHandler(null);
     eventChannel.setStreamHandler(null);
+  }
+
+  /** ====== ActivityAware Methods ====== */
+  @Override
+  public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
+    activity = binding.getActivity();
+  }
+
+  @Override
+  public void onDetachedFromActivityForConfigChanges() {
+    activity = null;
+  }
+
+  @Override
+  public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding binding) {
+    activity = binding.getActivity();
+  }
+
+  @Override
+  public void onDetachedFromActivity() {
+    activity = null;
   }
 }
