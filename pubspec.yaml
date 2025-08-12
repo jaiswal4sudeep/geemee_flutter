@@ -1,7 +1,8 @@
 name: geemee_flutter
 description: "Customized plugin for Geemee x Flutter."
 version: 0.0.1
-homepage:
+homepage: https://github.com/jaiswal4sudeep/geemee_flutter
+repository: https://github.com/jaiswal4sudeep/geemee_flutter
 
 environment:
   sdk: ^3.8.1
