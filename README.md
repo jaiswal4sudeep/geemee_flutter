@@ -42,7 +42,9 @@ await GeemeeFlutter.loadBanner(
   placementId: "your_placement_id",
   adSize: GeemeeBannerSize.banner,
 );
-await GeemeeFlutter.showBanner(placementId: "your_placement_id");
+GeemeeBanner(
+  placementId: "your_placement_id",
+),
 ```
 
 ### Interstitial Ads

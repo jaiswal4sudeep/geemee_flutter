@@ -2,9 +2,7 @@ package com.sudeep.geemee_flutter;
 
 import android.app.Activity;
 import android.content.Context;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.LinearLayout;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 
@@ -49,6 +47,9 @@ public class GeemeeFlutterPlugin implements FlutterPlugin, MethodChannel.MethodC
         eventSink = null;
       }
     });
+
+    flutterPluginBinding.getPlatformViewRegistry().registerViewFactory(
+      "geemee_banner_view", new GeemeeBannerViewFactory(activity));
   }
 
   @Override
@@ -67,9 +68,16 @@ public class GeemeeFlutterPlugin implements FlutterPlugin, MethodChannel.MethodC
           @Override
           public void onBannerReady(String placementId) { sendEvent("onBannerReady", placementId); }
           @Override
-          public void onBannerLoadFailed(String placementId, GError gError) { sendEvent("onBannerLoadFailed", gError); }
+          public void onBannerLoadFailed(String placementId, GError gError) {
+            Log.d("Banner Load Failed", gError.toString());
+            sendEvent("onBannerLoadFailed", gError);
+          }
           @Override
-          public void onBannerShowFailed(String placementId, GError gError) { sendEvent("onBannerShowFailed", gError); }
+          public void onBannerShowFailed(String placementId, GError gError) {
+            Log.d("Banner Show Failed", gError.toString());
+            sendEvent("onBannerShowFailed", gError);
+          }
+          
           @Override
           public void onBannerClick(String placementId) { sendEvent("onBannerClick", placementId); }
 
@@ -147,28 +155,6 @@ public class GeemeeFlutterPlugin implements FlutterPlugin, MethodChannel.MethodC
         result.success(null);
         break;
 
-      case "showBanner":
-        String placementBannerShow = call.argument("placementId");
-        if (activity != null) {
-          activity.runOnUiThread(() -> {
-            View bannerView = GeeMee.showBanner(placementBannerShow);
-            if (bannerView != null) {
-              if (bannerView.getParent() != null) {
-                ViewGroup vg = (ViewGroup) bannerView.getParent();
-                vg.removeView(bannerView);
-              }
-              ViewGroup rootView = activity.findViewById(android.R.id.content);
-              if (rootView instanceof LinearLayout) {
-                ((LinearLayout) rootView).addView(bannerView);
-              } else if (rootView.getChildCount() > 0 && rootView.getChildAt(0) instanceof ViewGroup) {
-                ((ViewGroup) rootView.getChildAt(0)).addView(bannerView);
-              }
-            }
-          });
-        }
-        result.success(null);
-        break;
-
       case "isBannerReady":
         result.success(GeeMee.isBannerReady(call.argument("placementId")));
         break;
@@ -208,7 +194,9 @@ public class GeemeeFlutterPlugin implements FlutterPlugin, MethodChannel.MethodC
     if (eventSink != null) {
       Map<String, Object> map = new HashMap<>();
       map.put("event", eventName);
-      map.put("data", data);
+      if(data != null){
+        map.put("data", data);
+      }
       eventSink.success(map);
     }
   }
