@@ -30,7 +30,11 @@ class GeemeeFlutter {
   /// Initializes the GeeMee SDK with the provided app key.
   /// This method must be called before using any other features of the SDK.
   static Future<void> initSDK({required String appKey}) async {
-    await _channel.invokeMethod('initSDK', {'appKey': appKey});
+    try {
+      await _channel.invokeMethod('initSDK', {'appKey': appKey});
+    } catch (e) {
+      debugPrint('Error initializing GeeMee SDK: $e');
+    }
   }
 
   /// Sets the user ID for the SDK.
@@ -38,31 +42,55 @@ class GeemeeFlutter {
   /// The user ID can be used to identify the user across sessions.
   /// It should be unique for each user.
   static Future<void> setUserId({required String userId}) async {
-    await _channel.invokeMethod('setUserId', {'userId': userId});
+    try {
+      await _channel.invokeMethod('setUserId', {'userId': userId});
+    } catch (e) {
+      debugPrint('Error setting user ID: $e');
+    }
   }
 
   /// Retrieves the current user ID set in the SDK.
   static Future<String?> getUserId() async {
-    return await _channel.invokeMethod('getUserId');
+    try {
+      return await _channel.invokeMethod('getUserId');
+    } catch (e) {
+      debugPrint('Error getting user ID: $e');
+      return null;
+    }
   }
 
   /// Enables or disables debug mode for the SDK.
   static Future<void> setDebugMode({required bool debug}) async {
-    await _channel.invokeMethod('setDebugMode', {'debug': debug});
+    try {
+      await _channel.invokeMethod('setDebugMode', {'debug': debug});
+    } catch (e) {
+      debugPrint('Error setting debug mode: $e');
+    }
   }
 
   /// Retrieves the current version of the SDK.
   static Future<String?> getVersion() async {
-    return await _channel.invokeMethod('getVersion');
+    try {
+      return await _channel.invokeMethod('getVersion');
+    } catch (e) {
+      debugPrint('Error getting SDK version: $e');
+      return null;
+    }
   }
 
   /// ================= OFFER WALL =================
   /// Checks if the Offer Wall is ready to be shown.
   /// Returns true if the Offer Wall is ready, false otherwise.
   static Future<bool> isOfferWallReady({required String placementId}) async {
-    return await _channel.invokeMethod('isOfferWallReady', {
-      'placementId': placementId,
-    });
+    try {
+      final bool ready = await _channel.invokeMethod('isOfferWallReady', {
+        'placementId': placementId,
+      });
+      return ready;
+    } catch (e) {
+      debugPrint('Error checking if Offer Wall is ready: $e');
+      return false;
+    }
   }
 
   /// Opens the Offer Wall for the user.
@@ -70,7 +98,13 @@ class GeemeeFlutter {
   /// This method should be called only if `isOfferWallReady` returns true.
   /// The `placementId` is used to identify the specific Offer Wall configuration.
   static Future<void> openOfferWall({required String placementId}) async {
-    await _channel.invokeMethod('openOfferWall', {'placementId': placementId});
+    try {
+      await _channel.invokeMethod('openOfferWall', {
+        'placementId': placementId,
+      });
+    } catch (e) {
+      debugPrint('Error opening Offer Wall: $e');
+    }
   }
 
   /// ================= BANNER =================
@@ -82,58 +116,96 @@ class GeemeeFlutter {
     required String placementId,
     required GeemeeBannerSize adSize,
   }) async {
-    await _channel.invokeMethod('loadBanner', {
-      'placementId': placementId,
-      'adSize': adSize.value,
-    });
+    try {
+      await _channel.invokeMethod('loadBanner', {
+        'placementId': placementId,
+        'adSize': adSize.value,
+      });
+    } catch (e) {
+      debugPrint('Error loading banner: $e');
+    }
   }
 
   /// Hides the banner ad for the specified placement ID.
   /// This method will remove the banner from the view.
   /// It does not destroy the banner; it can be shown again later.
   static Future<bool> isBannerReady({required String placementId}) async {
-    return await _channel.invokeMethod('isBannerReady', {
-      'placementId': placementId,
-    });
+    try {
+      final bool ready = await _channel.invokeMethod('isBannerReady', {
+        'placementId': placementId,
+      });
+      return ready;
+    } catch (e) {
+      debugPrint('Error checking if banner is ready: $e');
+      return false;
+    }
   }
 
   /// Destroys the banner ad for the specified placement ID.
   static Future<void> destroyBanner({required String placementId}) async {
-    await _channel.invokeMethod('destroyBanner', {'placementId': placementId});
+    try {
+      await _channel.invokeMethod('destroyBanner', {
+        'placementId': placementId,
+      });
+    } catch (e) {
+      debugPrint('Error destroying banner: $e');
+    }
   }
 
   /// ================= INTERSTITIAL =================
   /// Checks if an interstitial ad is ready to be shown.
   /// Returns true if the interstitial ad is ready, false otherwise.
   static Future<bool> isInterstitialReady({required String placementId}) async {
-    return await _channel.invokeMethod('isInterstitialReady', {
-      'placementId': placementId,
-    });
+    try {
+      final bool ready = await _channel.invokeMethod('isInterstitialReady', {
+        'placementId': placementId,
+      });
+      return ready;
+    } catch (e) {
+      debugPrint('Error checking if interstitial is ready: $e');
+      return false;
+    }
   }
 
   /// Shows an interstitial ad for the specified placement ID.
   /// This method should be called only if `isInterstitialReady` returns true.
   /// The interstitial ad is a full-screen ad that covers the entire screen.
   static Future<void> showInterstitial({required String placementId}) async {
-    await _channel.invokeMethod('showInterstitial', {
-      'placementId': placementId,
-    });
+    try {
+      await _channel.invokeMethod('showInterstitial', {
+        'placementId': placementId,
+      });
+    } catch (e) {
+      debugPrint('Error showing interstitial: $e');
+    }
   }
 
   /// ================= PLAYMEE =================
   /// Checks if the PlayMee User Center is ready to be opened.
   /// Returns true if the User Center is ready, false otherwise.
   static Future<bool> isUserCenterReady({required String placementId}) async {
-    return await _channel.invokeMethod('isUserCenterReady', {
-      'placementId': placementId,
-    });
+    try {
+      final bool ready = await _channel.invokeMethod('isUserCenterReady', {
+        'placementId': placementId,
+      });
+      return ready;
+    } catch (e) {
+      debugPrint('Error checking if User Center is ready: $e');
+      return false;
+    }
   }
 
   /// Opens the PlayMee User Center for the specified placement ID.
   /// The User Center allows users to view their rewards, offers, and account details.
   /// This method should be called only if `isUserCenterReady` returns true.
   static Future<void> openUserCenter({required String placementId}) async {
-    await _channel.invokeMethod('openUserCenter', {'placementId': placementId});
+    try {
+      await _channel.invokeMethod('openUserCenter', {
+        'placementId': placementId,
+      });
+    } catch (e) {
+      debugPrint('Error opening User Center: $e');
+    }
   }
 
   /// ================= EVENTS =================

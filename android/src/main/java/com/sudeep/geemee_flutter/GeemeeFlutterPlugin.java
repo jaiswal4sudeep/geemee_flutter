@@ -27,7 +27,7 @@ public class GeemeeFlutterPlugin implements FlutterPlugin, MethodChannel.MethodC
   private EventChannel eventChannel;
   private EventChannel.EventSink eventSink;
   private Context context;
-  private Activity activity; // Store current activity
+  private Activity activity;
 
   @Override
   public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
