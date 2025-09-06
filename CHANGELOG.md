@@ -3,6 +3,9 @@
 
 **`CHANGELOG.md`**
 ```markdown
+## 0.0.4
+- Added better error catching
+
 ## 0.0.3
 - Fixed Banner Ads integration to use `GeemeeBanner` widget instead of `showBanner` method  
 - Added `GeemeeBannerViewFactory` with proper `Activity` context support  
