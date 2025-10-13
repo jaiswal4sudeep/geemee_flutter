@@ -1,6 +1,6 @@
 name: geemee_flutter
 description: A Flutter plugin for integrating the GeeMee Android SDK, supporting OfferWall, Banner Ads, Interstitial Ads, and PlayMee User Center.
-version: 0.0.4
+version: 0.0.5
 homepage: https://github.com/jaiswal4sudeep/geemee_flutter
 repository: https://github.com/jaiswal4sudeep/geemee_flutter
 
