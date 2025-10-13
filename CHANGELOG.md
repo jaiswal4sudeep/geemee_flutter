@@ -3,6 +3,9 @@
 
 **`CHANGELOG.md`**
 ```markdown
+## 0.0.5
+- Added better error catching
+
 ## 0.0.4
 - Added better error catching
 

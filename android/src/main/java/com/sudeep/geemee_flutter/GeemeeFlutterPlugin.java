@@ -20,14 +20,20 @@ import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.Result;
+import io.flutter.plugin.platform.PlatformViewRegistry;
 
 /** GeemeeFlutterPlugin */
 public class GeemeeFlutterPlugin implements FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware {
+  private static final String TAG = "GeemeeFlutterPlugin";
+
   private MethodChannel channel;
   private EventChannel eventChannel;
   private EventChannel.EventSink eventSink;
+  private EventChannel.StreamHandler streamHandler;
   private Context context;
   private Activity activity;
+  // cached registry so we can register platform views when activity attaches
+  private PlatformViewRegistry platformViewRegistry;
 
   @Override
   public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
@@ -36,7 +42,9 @@ public class GeemeeFlutterPlugin implements FlutterPlugin, MethodChannel.MethodC
     channel.setMethodCallHandler(this);
 
     eventChannel = new EventChannel(flutterPluginBinding.getBinaryMessenger(), "geemee_flutter_events");
-    eventChannel.setStreamHandler(new EventChannel.StreamHandler() {
+
+    // keep a reference so we can unregister cleanly later
+    streamHandler = new EventChannel.StreamHandler() {
       @Override
       public void onListen(Object arguments, EventChannel.EventSink events) {
         eventSink = events;
@@ -46,185 +54,395 @@ public class GeemeeFlutterPlugin implements FlutterPlugin, MethodChannel.MethodC
       public void onCancel(Object arguments) {
         eventSink = null;
       }
-    });
+    };
+    eventChannel.setStreamHandler(streamHandler);
 
-    flutterPluginBinding.getPlatformViewRegistry().registerViewFactory(
-      "geemee_banner_view", new GeemeeBannerViewFactory(activity));
+    // Cache the platform view registry now (only FlutterPluginBinding exposes it)
+    try {
+      platformViewRegistry = flutterPluginBinding.getPlatformViewRegistry();
+    } catch (Exception e) {
+      Log.w(TAG, "Failed to get PlatformViewRegistry from FlutterPluginBinding", e);
+      platformViewRegistry = null;
+    }
+
+    // Do NOT register the view factory here if activity is null - we'll do that in onAttachedToActivity.
   }
 
   @Override
   public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
-    switch (call.method) {
-      /** ================= SDK INIT ================= */
-      case "initSDK":
-        String appKey = call.argument("appKey");
-        GeeMee.setCallback(new GeeMeeCallback() {
-          @Override
-          public void onInitSuccess() { sendEvent("onInitSuccess", null); }
-          @Override
-          public void onInitFailed(GError error) { sendEvent("onInitFailed", error); }
-
-          /** Banner Callbacks */
-          @Override
-          public void onBannerReady(String placementId) { sendEvent("onBannerReady", placementId); }
-          @Override
-          public void onBannerLoadFailed(String placementId, GError gError) {
-            Log.d("Banner Load Failed", gError.toString());
-            sendEvent("onBannerLoadFailed", gError);
+    try {
+      String method = call.method;
+      switch (method) {
+        /** ================= SDK INIT ================= */
+        case "initSDK": {
+          String appKey = call.argument("appKey");
+          if (appKey == null) {
+            result.error("INVALID_ARGUMENT", "appKey is required", null);
+            return;
           }
-          @Override
-          public void onBannerShowFailed(String placementId, GError gError) {
-            Log.d("Banner Show Failed", gError.toString());
-            sendEvent("onBannerShowFailed", gError);
+          try {
+            GeeMee.setCallback(new GeeMeeCallback() {
+              @Override
+              public void onInitSuccess() { safeSendEvent("onInitSuccess", null); }
+              @Override
+              public void onInitFailed(GError error) { safeSendEvent("onInitFailed", errorToMap(error)); }
+
+              /** Banner Callbacks */
+              @Override
+              public void onBannerReady(String placementId) { safeSendEvent("onBannerReady", placementId); }
+              @Override
+              public void onBannerLoadFailed(String placementId, GError gError) {
+                Log.d(TAG, "Banner Load Failed: " + (gError != null ? gError.toString() : "null"));
+                safeSendEvent("onBannerLoadFailed", errorToMap(gError));
+              }
+              @Override
+              public void onBannerShowFailed(String placementId, GError gError) {
+                Log.d(TAG, "Banner Show Failed: " + (gError != null ? gError.toString() : "null"));
+                safeSendEvent("onBannerShowFailed", errorToMap(gError));
+              }
+
+              @Override
+              public void onBannerClick(String placementId) { safeSendEvent("onBannerClick", placementId); }
+
+              /** Interstitial Callbacks */
+              @Override
+              public void onInterstitialOpen(String placementId) { safeSendEvent("onInterstitialOpen", placementId); }
+              @Override
+              public void onInterstitialOpenFailed(String placementId, GError gError) { safeSendEvent("onInterstitialOpenFailed", errorToMap(gError)); }
+              @Override
+              public void onInterstitialClose(String placementId) { safeSendEvent("onInterstitialClose", placementId); }
+
+              /** OfferWall Callbacks */
+              @Override
+              public void onOfferWallOpen(String placement) { safeSendEvent("onOfferWallOpen", placement); }
+              @Override
+              public void onOfferWallOpenFailed(String placement, GError error) { safeSendEvent("onOfferWallOpenFailed", errorToMap(error)); }
+              @Override
+              public void onOfferWallClose(String placement) { safeSendEvent("onOfferWallClose", placement); }
+
+              /** PlayMee Callbacks */
+              @Override
+              public void onUserCenterOpen(String placementId) { safeSendEvent("onUserCenterOpen", placementId); }
+              @Override
+              public void onUserCenterOpenFailed(String placementId, GError gError) { safeSendEvent("onUserCenterOpenFailed", errorToMap(gError)); }
+              @Override
+              public void onUserCenterClose(String placementId) { safeSendEvent("onUserCenterClose", placementId); }
+
+              @Override
+              public void onUserInteraction(String placementId, String data) {
+                safeSendEvent("onUserInteraction", placementId + ":" + data);
+              }
+            });
+            GeeMee.initSDK(appKey);
+            result.success(null);
+          } catch (Exception e) {
+            Log.e(TAG, "initSDK error", e);
+            result.error("INIT_ERROR", e.getMessage(), null);
           }
-          
-          @Override
-          public void onBannerClick(String placementId) { sendEvent("onBannerClick", placementId); }
+          break;
+        }
 
-          /** Interstitial Callbacks */
-          @Override
-          public void onInterstitialOpen(String placementId) { sendEvent("onInterstitialOpen", placementId); }
-          @Override
-          public void onInterstitialOpenFailed(String placementId, GError gError) { sendEvent("onInterstitialOpenFailed", gError); }
-          @Override
-          public void onInterstitialClose(String placementId) { sendEvent("onInterstitialClose", placementId); }
-
-          /** OfferWall Callbacks */
-          @Override
-          public void onOfferWallOpen(String placement) { sendEvent("onOfferWallOpen", placement); }
-          @Override
-          public void onOfferWallOpenFailed(String placement, GError error) { sendEvent("onOfferWallOpenFailed", error); }
-          @Override
-          public void onOfferWallClose(String placement) { sendEvent("onOfferWallClose", placement); }
-
-          /** PlayMee Callbacks */
-          @Override
-          public void onUserCenterOpen(String placementId) { sendEvent("onUserCenterOpen", placementId); }
-          @Override
-          public void onUserCenterOpenFailed(String placementId, GError gError) { sendEvent("onUserCenterOpenFailed", gError); }
-          @Override
-          public void onUserCenterClose(String placementId) { sendEvent("onUserCenterClose", placementId); }
-
-          @Override
-          public void onUserInteraction(String placementId, String data) {
-            sendEvent("onUserInteraction", placementId + ":" + data);
+        /** ================= USER SETTINGS ================= */
+        case "setUserId": {
+          String userId = call.argument("userId");
+          if (userId == null) {
+            result.error("INVALID_ARGUMENT", "userId is required", null);
+            return;
           }
-        });
-        GeeMee.initSDK(appKey);
-        result.success(null);
-        break;
+          try {
+            GeeMee.setUserId(userId);
+            result.success(null);
+          } catch (Exception e) {
+            Log.e(TAG, "setUserId error", e);
+            result.error("SET_USER_ERROR", e.getMessage(), null);
+          }
+          break;
+        }
 
-      /** ================= USER SETTINGS ================= */
-      case "setUserId":
-        GeeMee.setUserId(call.argument("userId"));
-        result.success(null);
-        break;
+        case "getUserId": {
+          try {
+            String uid = GeeMee.getUserId();
+            result.success(uid);
+          } catch (Exception e) {
+            Log.e(TAG, "getUserId error", e);
+            result.error("GET_USER_ERROR", e.getMessage(), null);
+          }
+          break;
+        }
 
-      case "getUserId":
-        result.success(GeeMee.getUserId());
-        break;
+        case "setDebugMode": {
+          Boolean debug = call.argument("debug");
+          try {
+            GeeMee.debug(debug != null && debug);
+            result.success(null);
+          } catch (Exception e) {
+            Log.e(TAG, "setDebugMode error", e);
+            result.error("DEBUG_ERROR", e.getMessage(), null);
+          }
+          break;
+        }
 
-      case "setDebugMode":
-        Boolean debug = call.argument("debug");
-        GeeMee.debug(debug != null && debug);
-        result.success(null);
-        break;
+        case "getVersion": {
+          try {
+            result.success(GeeMee.getVersion());
+          } catch (Exception e) {
+            Log.e(TAG, "getVersion error", e);
+            result.error("VERSION_ERROR", e.getMessage(), null);
+          }
+          break;
+        }
 
-      case "getVersion":
-        result.success(GeeMee.getVersion());
-        break;
+        /** ================= OFFER WALL ================= */
+        case "isOfferWallReady": {
+          String placement = call.argument("placementId");
+          if (placement == null) {
+            result.error("INVALID_ARGUMENT", "placementId is required", null);
+            return;
+          }
+          try {
+            result.success(GeeMee.isOfferWallReady(placement));
+          } catch (Exception e) {
+            Log.e(TAG, "isOfferWallReady error", e);
+            result.error("OFFERWALL_READY_ERROR", e.getMessage(), null);
+          }
+          break;
+        }
 
-      /** ================= OFFER WALL ================= */
-      case "isOfferWallReady":
-        result.success(GeeMee.isOfferWallReady(call.argument("placementId")));
-        break;
+        case "openOfferWall": {
+          String placement = call.argument("placementId");
+          if (placement == null) {
+            result.error("INVALID_ARGUMENT", "placementId is required", null);
+            return;
+          }
+          try {
+            GeeMee.openOfferWall(placement);
+            result.success(null);
+          } catch (Exception e) {
+            Log.e(TAG, "openOfferWall error", e);
+            result.error("OFFERWALL_OPEN_ERROR", e.getMessage(), null);
+          }
+          break;
+        }
 
-      case "openOfferWall":
-        GeeMee.openOfferWall(call.argument("placementId"));
-        result.success(null);
-        break;
+        /** ================= BANNER ================= */
+        case "loadBanner": {
+          String placementBanner = call.argument("placementId");
+          String size = call.argument("adSize");
+          if (placementBanner == null || size == null) {
+            result.error("INVALID_ARGUMENT", "placementId and adSize are required", null);
+            return;
+          }
+          try {
+            AdSize adSize = AdSize.BANNER;
+            if ("MEDIUM_RECTANGLE".equals(size)) adSize = AdSize.MEDIUM_RECTANGLE;
+            else if ("LEADERBOARD".equals(size)) adSize = AdSize.LEADERBOARD;
+            GeeMee.loadBanner(placementBanner, adSize);
+            result.success(null);
+          } catch (Exception e) {
+            Log.e(TAG, "loadBanner error", e);
+            result.error("LOAD_BANNER_ERROR", e.getMessage(), null);
+          }
+          break;
+        }
 
-      /** ================= BANNER ================= */
-      case "loadBanner":
-        String placementBanner = call.argument("placementId");
-        String size = call.argument("adSize");
-        AdSize adSize = AdSize.BANNER;
-        if ("MEDIUM_RECTANGLE".equals(size)) adSize = AdSize.MEDIUM_RECTANGLE;
-        else if ("LEADERBOARD".equals(size)) adSize = AdSize.LEADERBOARD;
-        GeeMee.loadBanner(placementBanner, adSize);
-        result.success(null);
-        break;
+        case "isBannerReady": {
+          String placement = call.argument("placementId");
+          if (placement == null) {
+            result.error("INVALID_ARGUMENT", "placementId is required", null);
+            return;
+          }
+          try {
+            result.success(GeeMee.isBannerReady(placement));
+          } catch (Exception e) {
+            Log.e(TAG, "isBannerReady error", e);
+            result.error("BANNER_READY_ERROR", e.getMessage(), null);
+          }
+          break;
+        }
 
-      case "isBannerReady":
-        result.success(GeeMee.isBannerReady(call.argument("placementId")));
-        break;
+        case "destroyBanner": {
+          String placement = call.argument("placementId");
+          if (placement == null) {
+            result.error("INVALID_ARGUMENT", "placementId is required", null);
+            return;
+          }
+          try {
+            GeeMee.destroyBanner(placement);
+            result.success(null);
+          } catch (Exception e) {
+            Log.e(TAG, "destroyBanner error", e);
+            result.error("DESTROY_BANNER_ERROR", e.getMessage(), null);
+          }
+          break;
+        }
 
-      case "destroyBanner":
-        GeeMee.destroyBanner(call.argument("placementId"));
-        result.success(null);
-        break;
+        /** ================= INTERSTITIAL ================= */
+        case "isInterstitialReady": {
+          String placement = call.argument("placementId");
+          if (placement == null) {
+            result.error("INVALID_ARGUMENT", "placementId is required", null);
+            return;
+          }
+          try {
+            result.success(GeeMee.isInterstitialReady(placement));
+          } catch (Exception e) {
+            Log.e(TAG, "isInterstitialReady error", e);
+            result.error("INTERSTITIAL_READY_ERROR", e.getMessage(), null);
+          }
+          break;
+        }
 
-      /** ================= INTERSTITIAL ================= */
-      case "isInterstitialReady":
-        result.success(GeeMee.isInterstitialReady(call.argument("placementId")));
-        break;
+        case "showInterstitial": {
+          String placement = call.argument("placementId");
+          if (placement == null) {
+            result.error("INVALID_ARGUMENT", "placementId is required", null);
+            return;
+          }
+          try {
+            GeeMee.showInterstitial(placement);
+            result.success(null);
+          } catch (Exception e) {
+            Log.e(TAG, "showInterstitial error", e);
+            result.error("SHOW_INTERSTITIAL_ERROR", e.getMessage(), null);
+          }
+          break;
+        }
 
-      case "showInterstitial":
-        GeeMee.showInterstitial(call.argument("placementId"));
-        result.success(null);
-        break;
+        /** ================= PLAYMEE ================= */
+        case "isUserCenterReady": {
+          String placement = call.argument("placementId");
+          if (placement == null) {
+            result.error("INVALID_ARGUMENT", "placementId is required", null);
+            return;
+          }
+          try {
+            result.success(GeeMee.isUserCenterReady(placement));
+          } catch (Exception e) {
+            Log.e(TAG, "isUserCenterReady error", e);
+            result.error("USERCENTER_READY_ERROR", e.getMessage(), null);
+          }
+          break;
+        }
 
-      /** ================= PLAYMEE ================= */
-      case "isUserCenterReady":
-        result.success(GeeMee.isUserCenterReady(call.argument("placementId")));
-        break;
+        case "openUserCenter": {
+          String placement = call.argument("placementId");
+          if (placement == null) {
+            result.error("INVALID_ARGUMENT", "placementId is required", null);
+            return;
+          }
+          try {
+            GeeMee.openUserCenter(placement);
+            result.success(null);
+          } catch (Exception e) {
+            Log.e(TAG, "openUserCenter error", e);
+            result.error("OPEN_USERCENTER_ERROR", e.getMessage(), null);
+          }
+          break;
+        }
 
-      case "openUserCenter":
-        GeeMee.openUserCenter(call.argument("placementId"));
-        result.success(null);
-        break;
-
-      default:
-        result.notImplemented();
+        default:
+          result.notImplemented();
+      }
+    } catch (Exception e) {
+      Log.e(TAG, "onMethodCall unexpected error", e);
+      result.error("UNEXPECTED_ERROR", e.getMessage(), null);
     }
   }
 
-  /** Send events to Flutter */
-  private void sendEvent(String eventName, Object data) {
-    if (eventSink != null) {
-      Map<String, Object> map = new HashMap<>();
-      map.put("event", eventName);
-      if(data != null){
-        map.put("data", data);
+  /** Safe wrapper around sending events to Flutter - avoids crashes if sink is null or sink throws */
+  private void safeSendEvent(String eventName, Object data) {
+    try {
+      if (eventSink != null) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("event", eventName);
+        if (data != null) {
+          map.put("data", data);
+        }
+        eventSink.success(map);
+      } else {
+        Log.w(TAG, "EventSink is null - dropping event: " + eventName);
       }
-      eventSink.success(map);
+    } catch (Exception e) {
+      // log and swallow - do not crash the SDK callback thread
+      Log.e(TAG, "Failed to send event to Flutter: " + eventName, e);
     }
+  }
+
+  /** convert GError to simple map (null safe) to send to dart side */
+  private Map<String, Object> errorToMap(GError error) {
+    Map<String, Object> m = new HashMap<>();
+    if (error == null) return m;
+    try {
+      // GError API may differ across SDK versions. Use toString() as a safe fallback
+      m.put("error", String.valueOf(error));
+    } catch (Exception e) {
+      Log.e(TAG, "errorToMap failed", e);
+      m.put("error", "unknown_error");
+    }
+    return m;
   }
 
   @Override
   public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
-    channel.setMethodCallHandler(null);
-    eventChannel.setStreamHandler(null);
+    try {
+      if (channel != null) {
+        channel.setMethodCallHandler(null);
+        channel = null;
+      }
+      if (eventChannel != null) {
+        // unregister our stream handler
+        eventChannel.setStreamHandler(null);
+        eventChannel = null;
+      }
+      // clear sink and stream handler references
+      eventSink = null;
+      streamHandler = null;
+      // clear cached registry
+      platformViewRegistry = null;
+    } catch (Exception e) {
+      Log.e(TAG, "onDetachedFromEngine error", e);
+    }
   }
 
   /** ====== ActivityAware Methods ====== */
   @Override
   public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
-    activity = binding.getActivity();
+    this.activity = binding.getActivity();
+    try {
+      // register the banner view factory now that activity is available
+      if (activity != null && platformViewRegistry != null) {
+        platformViewRegistry.registerViewFactory(
+                "geemee_banner_view", new GeemeeBannerViewFactory(activity));
+      } else {
+        Log.w(TAG, "Activity or PlatformViewRegistry is null onAttachedToActivity - cannot register banner view");
+      }
+    } catch (Exception e) {
+      Log.e(TAG, "Failed to register GeemeeBannerViewFactory", e);
+    }
   }
 
   @Override
   public void onDetachedFromActivityForConfigChanges() {
-    activity = null;
+    this.activity = null;
   }
 
   @Override
   public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding binding) {
-    activity = binding.getActivity();
+    this.activity = binding.getActivity();
+    try {
+      if (activity != null && platformViewRegistry != null) {
+        platformViewRegistry.registerViewFactory(
+                "geemee_banner_view", new GeemeeBannerViewFactory(activity));
+      } else {
+        Log.w(TAG, "Activity or PlatformViewRegistry is null onReattachedToActivityForConfigChanges");
+      }
+    } catch (Exception e) {
+      Log.e(TAG, "Failed to re-register GeemeeBannerViewFactory", e);
+    }
   }
 
   @Override
   public void onDetachedFromActivity() {
-    activity = null;
+    this.activity = null;
   }
 }

@@ -213,9 +213,14 @@ class GeemeeFlutter {
   /// The events are sent as a stream of maps containing event data.
   /// Each event map contains the event type and any additional data related to the event.
   static Stream<Map<dynamic, dynamic>> get events {
-    return _events.receiveBroadcastStream().map(
-      (event) => Map<dynamic, dynamic>.from(event),
-    );
+    return _events.receiveBroadcastStream().map((event) {
+      try {
+        return Map<dynamic, dynamic>.from(event);
+      } catch (e) {
+        debugPrint('Error parsing GeeMee event: $e');
+        return {};
+      }
+    });
   }
 }
 
